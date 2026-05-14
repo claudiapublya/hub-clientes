@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hub de Clientes — Publya</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
+<style>
+:root {
+  --bg: #080810;
+  --surface: #11111c;
+  --surface2: #191926;
+  --surface3: #20202f;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #eeeaf8;
+  --muted: #7b7899;
+  --muted2: #555270;
+  --accent: #8b7cf8;
+  --accent2: #f06a9e;
+  --accent3: #3dcfb0;
+  --accent4: #f5a623;
+  --green: #4ade80;
+  --red: #f87171;
+  --yellow: #fbbf24;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* BG TEXTURE */
+body::before {
+  content:'';
+  position:fixed; inset:0; z-index:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(139,124,248,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240,106,158,0.05) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+/* LAYOUT */
+.app { position:relative; z-index:1; display:flex; flex-direction:column; min-height:100vh; }
+
+/* TOP BAR */
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.25rem 2rem;
+  border-bottom:1px solid var(--border);
+  background:rgba(8,8,16,0.8);
+  backdrop-filter:blur(12px);
+  position:sticky; top:0; z-index:100;
+}
+.topbar-brand { display:flex; align-items:center; gap:0.75rem; }
+.topbar-brand .logo {
+  width:32px; height:32px; border-radius:10px;
+  background:linear-gradient(135deg, var(--accent), var(--accent2));
+  display:flex; align-items:center; justify-content:center;
+  font-size:1rem;
+}
+.topbar-brand h1 {
+  font-family:'Syne',sans-serif;
+  font-size:1rem; font-weight:700;
+  color:var(--text);
+  letter-spacing:-0.02em;
+}
+.topbar-brand span {
+  font-size:0.75rem; color:var(--muted);
+  font-weight:300;
+}
+.topbar-right { display:flex; align-items:center; gap:0.75rem; }
+.sync-status {
+  display:flex; align-items:center; gap:0.4rem;
+  font-size:0.72rem; color:var(--muted);
+  padding:0.3rem 0.75rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:50px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.sync-status:hover { border-color:var(--border2); }
+.sync-dot { width:6px;height:6px;border-radius:50%; background:var(--muted2); flex-shrink:0; }
+.sync-dot.online { background:var(--green); box-shadow:0 0 6px var(--green); animation:syncpulse 2s infinite; }
+@keyframes syncpulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.btn-new {
+  display:flex; align-items:center; gap:0.4rem;
+  background:var(--accent); border:none; border-radius:10px;
+  padding:0.55rem 1.1rem;
+  color:#fff; font-family:'DM Sans',sans-serif;
+  font-size:0.84rem; font-weight:500;
+  cursor:pointer; transition:opacity 0.15s;
+}
+.btn-new:hover { opacity:0.85; }
+
+/* MAIN */
+.main { display:flex; flex:1; }
+
+/* SIDEBAR LIST */
+.sidebar {
+  width:320px; flex-shrink:0;
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  height:calc(100vh - 61px);
+  position:sticky; top:61px;
+  overflow:hidden;
+}
+.sidebar-search {
+  padding:1rem;
+  border-bottom:1px solid var(--border);
+  position:relative;
+}
+.sidebar-search input {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:0.6rem 0.9rem 0.6rem 2.2rem;
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  font-size:0.84rem;
+  outline:none;
+  transition:border-color 0.2s;
+}
+.sidebar-search input:focus { border-color:var(--accent); }
+.sidebar-search input::placeholder { color:var(--muted2); }
+.sidebar-search .s-icon {
+  position:absolute; left:1.6rem; top:50%;
+  transform:translateY(-50%);
+  color:var(--muted2); font-size:0.85rem; pointer-events:none;
+}
+.sidebar-filters {
+  padding:0.6rem 1rem;
+  border-bottom:1px solid var(--border);
+  display:flex; gap:0.4rem; flex-wrap:wrap;
+}
+.filter-pill {
+  font-size:0.7rem; padding:3px 10px; border-radius:50px;
+  border:1px solid var(--border);
+  color:var(--muted); cursor:pointer;
+  background:transparent;
+  font-family:'DM Sans',sans-serif;
+  transition:all 0.15s;
+  white-space:nowrap;
+}
+.filter-pill:hover, .filter-pill.active {
+  border-color:var(--accent);
+  color:var(--text);
+  background:rgba(139,124,248,0.1);
+}
+.sidebar-list {
+  flex:1; overflow-y:auto;
+  padding:0.5rem;
+}
+.sidebar-list::-webkit-scrollbar { width:4px; }
+.sidebar-list::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+.client-item {
+  display:flex; align-items:center; gap:0.75rem;
+  padding:0.75rem 0.85rem;
+  border-radius:12px;
+  cursor:pointer;
+  transition:all 0.15s;
+  border:1px solid transparent;
+  margin-bottom:2px;
+}
+.client-item:hover { background:var(--surface2); }
+.client-item.active { background:var(--surface2); border-color:var(--border2); }
+.client-avatar {
+  width:38px; height:38px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Syne',sans-serif; font-weight:700;
+  font-size:0.9rem; flex-shrink:0;
+  color:#fff;
+}
+.client-item-info { flex:1; min-width:0; }
+.client-item-name {
+  font-size:0.88rem; font-weight:500;
+  color:var(--text); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.client-item-seg {
+  font-size:0.72rem; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.client-item-badge {
+  width:8px; height:8px; border-radius:50%;
+  flex-shrink:0;
+}
+.empty-state {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:3rem 1.5rem; text-align:center;
+  gap:0.5rem; color:var(--muted);
+}
+.empty-state .e-icon { font-size:2rem; margin-bottom:0.25rem; }
+.empty-state p { font-size:0.82rem; line-height:1.6; }
+
+/* DETAIL PANEL */
+.detail {
+  flex:1; overflow-y:auto;
+  padding:2rem 2.5rem;
+  max-width:860px;
+}
+.detail::-webkit-scrollbar { width:4px; }
+.detail::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+.detail-empty {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  height:100%; gap:1rem;
+  color:var(--muted); text-align:center;
+}
+.detail-empty .big-icon { font-size:3.5rem; opacity:0.3; }
+.detail-empty p { font-size:0.88rem; line-height:1.7; max-width:300px; }
+
+.detail-header {
+  display:flex; align-items:flex-start;
+  justify-content:space-between; gap:1rem;
+  margin-bottom:2rem;
+  padding-bottom:1.5rem;
+  border-bottom:1px solid var(--border);
+}
+.detail-header-left { display:flex; align-items:center; gap:1rem; }
+.detail-big-avatar {
+  width:56px; height:56px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Syne',sans-serif; font-weight:800;
+  font-size:1.4rem; color:#fff; flex-shrink:0;
+}
+.detail-name {
+  font-family:'Syne',sans-serif;
+  font-size:1.5rem; font-weight:800;
+  letter-spacing:-0.03em; color:var(--text);
+  line-height:1.2;
+}
+.detail-seg {
+  font-size:0.82rem; color:var(--muted);
+  margin-top:0.2rem;
+}
+.detail-actions { display:flex; gap:0.5rem; flex-shrink:0; }
+.btn-icon {
+  width:36px; height:36px; border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--muted); font-size:0.9rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all 0.15s;
+}
+.btn-icon:hover { border-color:var(--border2); color:var(--text); }
+.btn-icon.danger:hover { border-color:var(--red); color:var(--red); }
+
+/* STATUS BADGE */
+.status-badge {
+  display:inline-flex; align-items:center; gap:0.4rem;
+  font-size:0.72rem; font-weight:500;
+  padding:4px 12px; border-radius:50px;
+  border:1px solid;
+}
+.status-ativo { color:var(--green); border-color:rgba(74,222,128,0.25); background:rgba(74,222,128,0.08); }
+.status-pausado { color:var(--yellow); border-color:rgba(251,191,36,0.25); background:rgba(251,191,36,0.08); }
+.status-inativo { color:var(--red); border-color:rgba(248,113,113,0.25); background:rgba(248,113,113,0.08); }
+.status-dot { width:5px;height:5px;border-radius:50%;background:currentColor; }
+
+/* SECTIONS */
+.section { margin-bottom:1.75rem; }
+.section-title {
+  font-family:'Syne',sans-serif;
+  font-size:0.7rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.1em;
+  color:var(--muted); margin-bottom:0.75rem;
+}
+.obs-block {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:1.25rem 1.5rem;
+  font-size:0.88rem; color:#ccc9e8;
+  line-height:1.8; white-space:pre-wrap;
+  word-break:break-word;
+}
+.obs-block.empty { color:var(--muted2); font-style:italic; }
+
+/* LINKS */
+.links-list { display:flex; flex-direction:column; gap:0.5rem; }
+.link-item {
+  display:flex; align-items:center; gap:0.75rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:0.75rem 1rem;
+  text-decoration:none;
+  transition:all 0.15s;
+  group:true;
+}
+.link-item:hover { border-color:var(--border2); background:var(--surface2); }
+.link-icon {
+  width:32px;height:32px;border-radius:8px;
+  background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.9rem; flex-shrink:0;
+}
+.link-info { flex:1; min-width:0; }
+.link-label {
+  font-size:0.84rem; font-weight:500; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.link-url {
+  font-size:0.72rem; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.link-arrow { color:var(--muted2); font-size:0.8rem; }
+
+/* HISTORY */
+.history-list { display:flex; flex-direction:column; gap:0; }
+.history-item {
+  display:flex; gap:0.75rem;
+  padding:0.75rem 0;
+  border-bottom:1px solid var(--border);
+  position:relative;
+}
+.history-item:last-child { border-bottom:none; }
+.history-avatar {
+  width:30px; height:30px; border-radius:8px;
+  background:var(--surface2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:0.72rem; font-weight:700;
+  color:var(--accent); flex-shrink:0;
+  border:1px solid var(--border);
+  font-family:'Syne',sans-serif;
+}
+.history-content { flex:1; }
+.history-who {
+  font-size:0.8rem; font-weight:500; color:var(--text);
+}
+.history-what {
+  font-size:0.78rem; color:var(--muted);
+  margin-top:0.1rem; line-height:1.5;
+}
+.history-when {
+  font-size:0.7rem; color:var(--muted2);
+  white-space:nowrap; flex-shrink:0; margin-top:0.15rem;
+}
+
+/* MODAL / DRAWER */
+.overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.75);
+  z-index:500;
+  align-items:center; justify-content:center;
+  padding:1.5rem;
+  backdrop-filter:blur(6px);
+}
+.overlay.active { display:flex; }
+.drawer {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  max-width:600px; width:100%;
+  max-height:90vh; overflow-y:auto;
+  animation:drawerIn 0.25s ease;
+}
+.drawer::-webkit-scrollbar { width:4px; }
+.drawer::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+@keyframes drawerIn {
+  from { opacity:0; transform:translateY(16px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+.drawer-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.5rem 1.75rem 1.25rem;
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--surface);
+  border-radius:20px 20px 0 0;
+}
+.drawer-header h3 {
+  font-family:'Syne',sans-serif;
+  font-size:1rem; font-weight:700;
+}
+.drawer-close {
+  width:30px;height:30px; border-radius:8px;
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--muted); cursor:pointer; font-size:1rem;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+.drawer-close:hover { color:var(--text); }
+.drawer-body { padding:1.5rem 1.75rem; display:flex; flex-direction:column; gap:1.1rem; }
+.drawer-footer {
+  padding:1.25rem 1.75rem;
+  border-top:1px solid var(--border);
+  display:flex; gap:0.75rem; justify-content:flex-end;
+  position:sticky; bottom:0; background:var(--surface);
+}
+
+/* FORM FIELDS */
+.field { display:flex; flex-direction:column; gap:0.4rem; }
+.field label {
+  font-size:0.72rem; font-weight:500;
+  color:var(--muted); text-transform:uppercase; letter-spacing:0.07em;
+}
+.field input, .field textarea, .field select {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:0.65rem 0.9rem;
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  font-size:0.88rem;
+  outline:none;
+  transition:border-color 0.2s;
+  width:100%;
+}
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color:var(--accent);
+}
+.field input::placeholder, .field textarea::placeholder { color:var(--muted2); }
+.field textarea { resize:vertical; min-height:100px; line-height:1.6; }
+.field select option { background:var(--surface2); }
+.field-row { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; }
+.field-hint { font-size:0.72rem; color:var(--muted2); }
+
+/* LINKS EDITOR */
+.links-editor { display:flex; flex-direction:column; gap:0.5rem; }
+.link-editor-row {
+  display:flex; gap:0.5rem; align-items:center;
+}
+.link-editor-row input { flex:1; }
+.btn-remove-link {
+  width:32px;height:32px;border-radius:8px;
+  background:rgba(248,113,113,0.1);
+  border:1px solid rgba(248,113,113,0.2);
+  color:var(--red); cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.85rem; flex-shrink:0;
+  transition:all 0.15s;
+}
+.btn-remove-link:hover { background:rgba(248,113,113,0.2); }
+.btn-add-link {
+  background:transparent;
+  border:1px dashed var(--border2);
+  border-radius:10px;
+  padding:0.5rem;
+  color:var(--muted);
+  font-size:0.8rem;
+  cursor:pointer;
+  font-family:'DM Sans',sans-serif;
+  transition:all 0.15s;
+  width:100%;
+}
+.btn-add-link:hover { border-color:var(--accent); color:var(--accent); }
+
+/* NAME PROMPT */
+.name-prompt-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.85);
+  z-index:600; align-items:center; justify-content:center;
+  padding:1.5rem; backdrop-filter:blur(8px);
+}
+.name-prompt-overlay.active { display:flex; }
+.name-prompt-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:2rem;
+  max-width:400px; width:100%;
+  text-align:center;
+  animation:drawerIn 0.25s ease;
+}
+.name-prompt-box h3 {
+  font-family:'Syne',sans-serif;
+  font-size:1.1rem; font-weight:800;
+  margin-bottom:0.4rem;
+}
+.name-prompt-box p {
+  font-size:0.83rem; color:var(--muted);
+  margin-bottom:1.25rem; line-height:1.6;
+}
+.name-prompt-box input {
+  width:100%; background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:10px; padding:0.65rem 0.9rem;
+  color:var(--text); font-family:'DM Sans',sans-serif;
+  font-size:0.9rem; outline:none;
+  text-align:center; margin-bottom:0.9rem;
+  transition:border-color 0.2s;
+}
+.name-prompt-box input:focus { border-color:var(--accent); }
+.name-prompt-box input::placeholder { color:var(--muted2); }
+
+/* FIREBASE SETUP */
+.fb-setup-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.9);
+  z-index:700; align-items:center; justify-content:center;
+  padding:1.5rem; backdrop-filter:blur(8px);
+}
+.fb-setup-overlay.active { display:flex; }
+.fb-setup-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  max-width:520px; width:100%;
+  max-height:90vh; overflow-y:auto;
+  animation:drawerIn 0.25s ease;
+}
+.fb-setup-box::-webkit-scrollbar { width:4px; }
+.fb-setup-box::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+/* BUTTONS */
+.btn-primary {
+  background:var(--accent); border:none; border-radius:10px;
+  padding:0.6rem 1.4rem; color:#fff;
+  font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:500;
+  cursor:pointer; transition:opacity 0.15s;
+}
+.btn-primary:hover { opacity:0.85; }
+.btn-secondary {
+  background:transparent; border:1px solid var(--border);
+  border-radius:10px; padding:0.6rem 1.25rem; color:var(--muted);
+  font-family:'DM Sans',sans-serif; font-size:0.85rem;
+  cursor:pointer; transition:all 0.15s;
+}
+.btn-secondary:hover { border-color:var(--border2); color:var(--text); }
+.btn-danger {
+  background:rgba(248,113,113,0.12); border:1px solid rgba(248,113,113,0.2);
+  border-radius:10px; padding:0.6rem 1.25rem; color:var(--red);
+  font-family:'DM Sans',sans-serif; font-size:0.85rem;
+  cursor:pointer; transition:all 0.15s;
+}
+.btn-danger:hover { background:rgba(248,113,113,0.2); }
+
+/* INFO BOX */
+.info-box-warn {
+  background:rgba(245,166,35,0.08);
+  border:1px solid rgba(245,166,35,0.2);
+  border-left:3px solid var(--accent4);
+  border-radius:10px; padding:0.85rem 1rem;
+  font-size:0.82rem; color:#d4b896; line-height:1.7;
+}
+.info-box-warn strong { color:var(--accent4); }
+
+/* CONFIRM */
+.confirm-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.75); z-index:800;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.confirm-overlay.active { display:flex; }
+.confirm-box {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:16px; padding:1.75rem;
+  max-width:340px; width:100%; text-align:center;
+  animation:drawerIn 0.2s ease;
+}
+.confirm-box h4 { font-family:'Syne',sans-serif; font-size:1rem; margin-bottom:0.4rem; }
+.confirm-box p { font-size:0.83rem; color:var(--muted); margin-bottom:1.25rem; line-height:1.5; }
+.confirm-btns { display:flex; gap:0.75rem; justify-content:center; }
+
+/* TOAST */
+.toast {
+  position:fixed; bottom:1.5rem; left:50%;
+  transform:translateX(-50%) translateY(8px);
+  background:var(--surface2); border:1px solid var(--border2);
+  border-radius:50px; padding:0.55rem 1.2rem;
+  color:var(--text); font-size:0.82rem;
+  z-index:900; opacity:0; transition:all 0.3s;
+  pointer-events:none; white-space:nowrap;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* TAG COLORS */
+.tag-0 { background:linear-gradient(135deg,#7c6af7,#a855f7); }
+.tag-1 { background:linear-gradient(135deg,#f06a9e,#fb7185); }
+.tag-2 { background:linear-gradient(135deg,#3dcfb0,#22d3ee); }
+.tag-3 { background:linear-gradient(135deg,#f5a623,#f59e0b); }
+.tag-4 { background:linear-gradient(135deg,#4ade80,#34d399); }
+.tag-5 { background:linear-gradient(135deg,#60a5fa,#818cf8); }
+.tag-6 { background:linear-gradient(135deg,#f87171,#fb923c); }
+.tag-7 { background:linear-gradient(135deg,#e879f9,#c084fc); }
+
+/* LOADING */
+.loading-screen {
+  position:fixed; inset:0;
+  background:var(--bg); z-index:1000;
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:1rem;
+  transition:opacity 0.4s;
+}
+.loading-screen.hidden { opacity:0; pointer-events:none; }
+.loading-spinner {
+  width:36px;height:36px; border-radius:50%;
+  border:2px solid var(--border2);
+  border-top-color:var(--accent);
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-screen p { font-size:0.83rem; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-spinner"></div>
+  <p>Carregando hub...</p>
+</div>
+
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="logo">📋</div>
+      <div>
+        <h1>Hub de Clientes</h1>
+        <span id="user-display">clique para definir seu nome</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="sync-status" id="sync-status" onclick="showFirebaseSetup()">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-label">Conectar Firebase</span>
+      </div>
+      <button class="btn-new" onclick="openDrawer(null)">
+        + Novo cliente
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-search">
+        <span class="s-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Buscar cliente..." oninput="filterClients()">
+      </div>
+      <div class="sidebar-filters" id="filter-tags">
+        <button class="filter-pill active" data-filter="todos" onclick="setFilter('todos',this)">Todos</button>
+      </div>
+      <div class="sidebar-list" id="sidebar-list">
+        <div class="empty-state">
+          <div class="e-icon">🏢</div>
+          <p>Nenhum cliente ainda.<br>Clique em "+ Novo cliente" para começar.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DETAIL -->
+    <div class="detail" id="detail-panel">
+      <div class="detail-empty">
+        <div class="big-icon">👈</div>
+        <p>Selecione um cliente na lista para ver as informações e histórico.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER: ADD / EDIT CLIENT -->
+<div class="overlay" id="drawer-overlay" onclick="closeDrawerOutside(event)">
+  <div class="drawer">
+    <div class="drawer-header">
+      <h3 id="drawer-title">Novo Cliente</h3>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Nome do cliente *</label>
+          <input type="text" id="f-name" placeholder="Ex: Magazine Luiza">
+        </div>
+        <div class="field">
+          <label>Segmento</label>
+          <input type="text" id="f-seg" placeholder="Ex: Varejo, Saúde...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="ativo">Ativo</option>
+          <option value="pausado">Pausado</option>
+          <option value="inativo">Inativo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Observações gerais</label>
+        <textarea id="f-obs" rows="5" placeholder="Exceções, regras especiais, informações importantes sobre esse cliente..."></textarea>
+      </div>
+      <div class="field">
+        <label>Links e arquivos</label>
+        <div class="links-editor" id="links-editor"></div>
+        <button class="btn-add-link" onclick="addLinkRow()">+ Adicionar link</button>
+        <span class="field-hint">Cole links de Google Drive, propostas, sites, etc.</span>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="closeDrawer()">Cancelar</button>
+      <button class="btn-primary" onclick="saveClient()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- NAME PROMPT -->
+<div class="name-prompt-overlay active" id="name-prompt">
+  <div class="name-prompt-box">
+    <h3>👋 Olá!</h3>
+    <p>Qual é o seu nome? Ele ficará registrado no histórico de alterações para o time saber quem editou cada informação.</p>
+    <input type="text" id="name-input" placeholder="Seu nome aqui..." maxlength="40">
+    <button class="btn-primary" style="width:100%" onclick="saveName()">Entrar</button>
+  </div>
+</div>
+
+<!-- FIREBASE SETUP -->
+<div class="fb-setup-overlay" id="fb-setup-overlay">
+  <div class="fb-setup-box">
+    <div class="drawer-header">
+      <h3>🔥 Conectar ao Firebase</h3>
+      <button class="drawer-close" onclick="document.getElementById('fb-setup-overlay').classList.remove('active')">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="info-box-warn">
+        <strong>Como configurar (5 minutos):</strong><br>
+        1. Acesse <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">console.firebase.google.com</a><br>
+        2. Crie ou abra seu projeto (pode usar o mesmo do FAQ!)<br>
+        3. Adicionar app → Web → copie o <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">firebaseConfig</code><br>
+        4. Firestore Database → Criar banco → Modo teste → Criar
+      </div>
+      <div class="field">
+        <label>Cole o firebaseConfig aqui</label>
+        <textarea id="fb-config-input" rows="8" style="font-family:monospace;font-size:0.78rem;" placeholder='Cole o objeto completo, ex:
+{
+  apiKey: "AIza...",
+  authDomain: "meu-projeto.firebaseapp.com",
+  projectId: "meu-projeto",
+  ...
+}'></textarea>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="document.getElementById('fb-setup-overlay').classList.remove('active')">Cancelar</button>
+      <button class="btn-primary" onclick="connectFirebase()">🔥 Conectar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h4>Excluir cliente?</h4>
+    <p id="confirm-text">Essa ação não pode ser desfeita.</p>
+    <div class="confirm-btns">
+      <button class="btn-secondary" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn-danger" onclick="confirmDelete()">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================
+// STATE
+// =====================
+let db = null;
+let firebaseReady = false;
+let unsubscribe = null;
+let clients = {}; // id -> client obj
+let currentClientId = null;
+let editingClientId = null;
+let deleteTargetId = null;
+let currentFilter = 'todos';
+let currentUser = '';
+let linkRowCount = 0;
+
+// =====================
+// USER NAME
+// =====================
+function initUser() {
+  // Always hide loading quickly
+  hideLoading();
+  
+  const saved = localStorage.getItem('hub-user-name');
+  if (saved) {
+    currentUser = saved;
+    document.getElementById('user-display').textContent = saved;
+    document.getElementById('name-prompt').classList.remove('active');
+    init();
+  } else {
+    // Show name prompt, hide loading
+    document.getElementById('loading-screen').classList.add('hidden');
+    setTimeout(() => document.getElementById('name-input').focus(), 100);
+  }
+  document.getElementById('name-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveName();
+  });
+}
+
+function saveName() {
+  const val = document.getElementById('name-input').value.trim();
+  if (!val) { showToast('⚠️ Digite seu nome!'); return; }
+  currentUser = val;
+  localStorage.setItem('hub-user-name', val);
+  document.getElementById('user-display').textContent = val;
+  document.getElementById('name-prompt').classList.remove('active');
+  init();
+}
+
+// =====================
+// INIT
+// =====================
+function init() {
+  tryAutoConnect();
+  renderSidebar();
+}
+
+function hideLoading() {
+  setTimeout(() => {
+    document.getElementById('loading-screen').classList.add('hidden');
+  }, 300);
+}
+
+// =====================
+// FIREBASE
+// =====================
+function showFirebaseSetup() {
+  document.getElementById('fb-setup-overlay').classList.add('active');
+}
+
+function connectFirebase() {
+  const raw = document.getElementById('fb-config-input').value.trim();
+  try {
+    let cfg;
+    try {
+      const clean = raw
+        .replace(/^const\s+\w+\s*=\s*/, '').replace(/;\s*$/, '')
+        .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":').replace(/'/g,"\"");
+      cfg = JSON.parse(clean);
+    } catch(e) {
+      cfg = eval('(' + raw.replace(/^const\s+\w+\s*=\s*/,'').replace(/;\s*$/,'') + ')');
+    }
+    initFirebase(cfg);
+  } catch(e) {
+    showToast('❌ Config inválida. Verifique o formato.');
+  }
+}
+
+function initFirebase(cfg) {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    firebaseReady = true;
+    localStorage.setItem('hub-firebase-config', JSON.stringify(cfg));
+    document.getElementById('fb-setup-overlay').classList.remove('active');
+    startSync();
+    setSyncStatus(true);
+    showToast('🔥 Firebase conectado!');
+  } catch(e) {
+    showToast('❌ Erro: ' + e.message);
+  }
+}
+
+function tryAutoConnect() {
+  const saved = localStorage.getItem('hub-firebase-config');
+  if (!saved) return;
+  // Wait for Firebase SDK to load (it's deferred)
+  let attempts = 0;
+  const tryConnect = () => {
+    attempts++;
+    if (typeof firebase !== 'undefined') {
+      try { initFirebase(JSON.parse(saved)); } catch(e) {}
+    } else if (attempts < 20) {
+      setTimeout(tryConnect, 200);
+    }
+  };
+  tryConnect();
+}
+
+function startSync() {
+  if (!db) return;
+  if (unsubscribe) unsubscribe();
+  unsubscribe = db.collection('hub-clientes').onSnapshot(snap => {
+    snap.docChanges().forEach(change => {
+      if (change.type === 'removed') {
+        delete clients[change.doc.id];
+        if (currentClientId === change.doc.id) {
+          currentClientId = null;
+          showDetailEmpty();
+        }
+      } else {
+        clients[change.doc.id] = { id: change.doc.id, ...change.doc.data() };
+      }
+    });
+    renderSidebar();
+    if (currentClientId && clients[currentClientId]) {
+      renderDetail(currentClientId);
+    }
+  });
+}
+
+function setSyncStatus(online) {
+  document.getElementById('sync-dot').className = 'sync-dot' + (online ? ' online' : '');
+  document.getElementById('sync-label').textContent = online ? '● Sincronizado' : 'Conectar Firebase';
+  if (online) {
+    document.getElementById('sync-status').style.color = 'var(--green)';
+    document.getElementById('sync-status').style.borderColor = 'rgba(74,222,128,0.25)';
+  }
+}
+
+// =====================
+// SAVE / DELETE
+// =====================
+async function saveClient() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('⚠️ Nome é obrigatório!'); return; }
+
+  const seg    = document.getElementById('f-seg').value.trim();
+  const status = document.getElementById('f-status').value;
+  const obs    = document.getElementById('f-obs').value.trim();
+  const links  = collectLinks();
+
+  const now = new Date().toISOString();
+  const isNew = !editingClientId;
+
+  let histEntry = {
+    who: currentUser,
+    what: isNew ? 'Criou o cliente' : 'Atualizou as informações',
+    when: now
+  };
+
+  // Build diff description for edits
+  if (!isNew && clients[editingClientId]) {
+    const old = clients[editingClientId];
+    let changes = [];
+    if (old.name !== name) changes.push('nome');
+    if (old.seg !== seg) changes.push('segmento');
+    if (old.status !== status) changes.push('status');
+    if (old.obs !== obs) changes.push('observações');
+    if (JSON.stringify(old.links||[]) !== JSON.stringify(links)) changes.push('links');
+    if (changes.length) histEntry.what = 'Atualizou: ' + changes.join(', ');
+    else { closeDrawer(); return; }
+  }
+
+  const existingHistory = (!isNew && clients[editingClientId]?.history) || [];
+  const newHistory = [histEntry, ...existingHistory].slice(0, 50);
+
+  const data = {
+    name, seg, status, obs, links,
+    history: newHistory,
+    updatedAt: now,
+    createdAt: isNew ? now : (clients[editingClientId]?.createdAt || now)
+  };
+
+  if (firebaseReady && db) {
+    try {
+      if (isNew) {
+        const ref = await db.collection('hub-clientes').add(data);
+        currentClientId = ref.id;
+      } else {
+        await db.collection('hub-clientes').doc(editingClientId).set(data);
+        currentClientId = editingClientId;
+      }
+    } catch(e) {
+      showToast('❌ Erro ao salvar: ' + e.message); return;
+    }
+  } else {
+    const id = editingClientId || ('local-' + Date.now());
+    clients[id] = { id, ...data };
+    currentClientId = id;
+    renderSidebar();
+    renderDetail(id);
+  }
+
+  closeDrawer();
+  showToast(isNew ? '✅ Cliente criado!' : '✅ Atualizado!');
+}
+
+function askDelete(id) {
+  deleteTargetId = id;
+  document.getElementById('confirm-text').textContent =
+    `Excluir "${clients[id]?.name}"? Esta ação não pode ser desfeita.`;
+  document.getElementById('confirm-overlay').classList.add('active');
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('active');
+  deleteTargetId = null;
+}
+
+async function confirmDelete() {
+  if (!deleteTargetId) return;
+  const id = deleteTargetId;
+  closeConfirm();
+  if (firebaseReady && db) {
+    try { await db.collection('hub-clientes').doc(id).delete(); }
+    catch(e) { showToast('❌ Erro ao excluir'); return; }
+  } else {
+    delete clients[id];
+    renderSidebar();
+    if (currentClientId === id) { currentClientId = null; showDetailEmpty(); }
+  }
+  showToast('🗑️ Cliente excluído');
+}
+
+// =====================
+// DRAWER
+// =====================
+function openDrawer(id) {
+  editingClientId = id;
+  linkRowCount = 0;
+  document.getElementById('drawer-title').textContent = id ? 'Editar Cliente' : 'Novo Cliente';
+
+  if (id && clients[id]) {
+    const c = clients[id];
+    document.getElementById('f-name').value = c.name || '';
+    document.getElementById('f-seg').value = c.seg || '';
+    document.getElementById('f-status').value = c.status || 'ativo';
+    document.getElementById('f-obs').value = c.obs || '';
+    const le = document.getElementById('links-editor');
+    le.innerHTML = '';
+    (c.links || []).forEach(l => addLinkRow(l.label, l.url));
+  } else {
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-seg').value = '';
+    document.getElementById('f-status').value = 'ativo';
+    document.getElementById('f-obs').value = '';
+    document.getElementById('links-editor').innerHTML = '';
+  }
+
+  document.getElementById('drawer-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('f-name').focus(), 100);
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+  editingClientId = null;
+}
+
+function closeDrawerOutside(e) {
+  if (e.target === document.getElementById('drawer-overlay')) closeDrawer();
+}
+
+function addLinkRow(label='', url='') {
+  const id = linkRowCount++;
+  const row = document.createElement('div');
+  row.className = 'link-editor-row';
+  row.id = 'link-row-' + id;
+  row.innerHTML = `
+    <input type="text" placeholder="Nome (ex: Proposta Q3)" value="${label}" id="link-label-${id}">
+    <input type="url" placeholder="https://..." value="${url}" id="link-url-${id}" style="flex:1.5">
+    <button class="btn-remove-link" onclick="removeLinkRow(${id})">✕</button>`;
+  document.getElementById('links-editor').appendChild(row);
+}
+
+function removeLinkRow(id) {
+  const el = document.getElementById('link-row-' + id);
+  if (el) el.remove();
+}
+
+function collectLinks() {
+  const links = [];
+  document.querySelectorAll('.link-editor-row').forEach(row => {
+    const id = row.id.replace('link-row-','');
+    const label = document.getElementById('link-label-' + id)?.value.trim() || '';
+    const url   = document.getElementById('link-url-'   + id)?.value.trim() || '';
+    if (url) links.push({ label: label || url, url });
+  });
+  return links;
+}
+
+// =====================
+// RENDER SIDEBAR
+// =====================
+function getAvatarClass(name) {
+  const idx = Math.abs(name.split('').reduce((a,c) => a + c.charCodeAt(0), 0)) % 8;
+  return 'tag-' + idx;
+}
+
+function getInitials(name) {
+  return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+function filterClients() { renderSidebar(); }
+
+function setFilter(val, btn) {
+  currentFilter = val;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const q = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const list = document.getElementById('sidebar-list');
+  const filterBar = document.getElementById('filter-tags');
+
+  // Build segment set
+  const segs = new Set();
+  Object.values(clients).forEach(c => { if (c.seg) segs.add(c.seg); });
+
+  // Rebuild filter pills (keep "Todos" + status)
+  const statusFilters = ['ativo','pausado','inativo'];
+  let filterHTML = `<button class="filter-pill ${currentFilter==='todos'?'active':''}" data-filter="todos" onclick="setFilter('todos',this)">Todos</button>`;
+  statusFilters.forEach(s => {
+    filterHTML += `<button class="filter-pill ${currentFilter===s?'active':''}" data-filter="${s}" onclick="setFilter('${s}',this)">${s.charAt(0).toUpperCase()+s.slice(1)}</button>`;
+  });
+  segs.forEach(s => {
+    filterHTML += `<button class="filter-pill ${currentFilter===s?'active':''}" data-filter="${s}" onclick="setFilter('${s.replace(/'/g,"\\'")}',this)">${s}</button>`;
+  });
+  filterBar.innerHTML = filterHTML;
+
+  // Filter clients
+  const filtered = Object.values(clients).filter(c => {
+    const matchQ = !q || c.name.toLowerCase().includes(q) || (c.seg||'').toLowerCase().includes(q) || (c.obs||'').toLowerCase().includes(q);
+    const matchF = currentFilter === 'todos' || c.status === currentFilter || c.seg === currentFilter;
+    return matchQ && matchF;
+  }).sort((a,b) => a.name.localeCompare(b.name));
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="e-icon">${q ? '🔍' : '🏢'}</div>
+      <p>${q ? 'Nenhum cliente encontrado para "' + q + '".' : 'Nenhum cliente nessa categoria.'}</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(c => {
+    const initials = getInitials(c.name);
+    const avatarClass = getAvatarClass(c.name);
+    const statusColor = c.status === 'ativo' ? 'var(--green)' : c.status === 'pausado' ? 'var(--yellow)' : 'var(--red)';
+    return `<div class="client-item ${currentClientId === c.id ? 'active' : ''}" onclick="selectClient('${c.id}')">
+      <div class="client-avatar ${avatarClass}">${initials}</div>
+      <div class="client-item-info">
+        <div class="client-item-name">${c.name}</div>
+        <div class="client-item-seg">${c.seg || 'Sem segmento'}</div>
+      </div>
+      <div class="client-item-badge" style="background:${statusColor}"></div>
+    </div>`;
+  }).join('');
+}
+
+// =====================
+// RENDER DETAIL
+// =====================
+function selectClient(id) {
+  currentClientId = id;
+  renderSidebar();
+  renderDetail(id);
+}
+
+function showDetailEmpty() {
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="detail-empty">
+      <div class="big-icon">👈</div>
+      <p>Selecione um cliente na lista para ver as informações e histórico.</p>
+    </div>`;
+}
+
+function renderDetail(id) {
+  const c = clients[id];
+  if (!c) return;
+
+  const initials = getInitials(c.name);
+  const avatarClass = getAvatarClass(c.name);
+  const statusClass = 'status-' + (c.status || 'ativo');
+  const statusLabel = (c.status || 'ativo').charAt(0).toUpperCase() + (c.status||'ativo').slice(1);
+
+  const linksHTML = (c.links||[]).length
+    ? (c.links||[]).map(l => {
+        const icon = l.url.includes('drive.google') ? '📁'
+          : l.url.includes('docs.google') ? '📄'
+          : l.url.includes('sheets.google') ? '📊'
+          : l.url.includes('notion') ? '📝'
+          : '🔗';
+        return `<a class="link-item" href="${l.url}" target="_blank" rel="noopener">
+          <div class="link-icon">${icon}</div>
+          <div class="link-info">
+            <div class="link-label">${l.label || l.url}</div>
+            <div class="link-url">${l.url}</div>
+          </div>
+          <span class="link-arrow">↗</span>
+        </a>`;
+      }).join('')
+    : `<p style="font-size:0.83rem;color:var(--muted2);font-style:italic">Nenhum link cadastrado.</p>`;
+
+  const histHTML = (c.history||[]).length
+    ? (c.history||[]).map(h => {
+        const initH = (h.who||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+        const dt = new Date(h.when);
+        const dtStr = isNaN(dt) ? h.when : dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        return `<div class="history-item">
+          <div class="history-avatar">${initH}</div>
+          <div class="history-content">
+            <div class="history-who">${h.who}</div>
+            <div class="history-what">${h.what}</div>
+          </div>
+          <div class="history-when">${dtStr}</div>
+        </div>`;
+      }).join('')
+    : `<p style="font-size:0.83rem;color:var(--muted2);font-style:italic">Sem histórico ainda.</p>`;
+
+  const updatedAt = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="detail-header">
+      <div class="detail-header-left">
+        <div class="detail-big-avatar ${avatarClass}">${initials}</div>
+        <div>
+          <div class="detail-name">${c.name}</div>
+          <div class="detail-seg">${c.seg||'Sem segmento'} · Atualizado ${updatedAt}</div>
+          <div style="margin-top:0.5rem">
+            <span class="status-badge ${statusClass}">
+              <span class="status-dot"></span>${statusLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn-icon" title="Editar" onclick="openDrawer('${id}')">✏️</button>
+        <button class="btn-icon danger" title="Excluir" onclick="askDelete('${id}')">🗑️</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Observações Gerais</div>
+      <div class="obs-block ${!c.obs ? 'empty' : ''}">${c.obs || 'Nenhuma observação cadastrada.'}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Links & Arquivos</div>
+      <div class="links-list">${linksHTML}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Histórico de Alterações</div>
+      <div class="history-list">${histHTML}</div>
+    </div>`;
+}
+
+// =====================
+// TOAST
+// =====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =====================
+// KEYBOARD
+// =====================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeDrawer();
+    closeConfirm();
+    document.getElementById('fb-setup-overlay').classList.remove('active');
+  }
+});
+
+// =====================
+// BOOT
+// =====================
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initUser);
+} else {
+  initUser();
+}
+</script>
+</body>
+</html>
